@@ -75,8 +75,7 @@ struct DeviceRow: View {
             if case .waking = status {
                 ProgressView().controlSize(.small)
             } else if status != .online {
-                Button("Wake") { store.wake(device) }
-                    .controlSize(.small)
+                WakeButton { store.wake(device) }
             }
             Menu {
                 Button("Wake Up") { store.wake(device) }
@@ -115,6 +114,26 @@ struct DeviceRow: View {
         case .waking: return "Waking… · \(ip)"
         case .unknown: return device.ip == nil ? "Status unknown · \(device.mac)" : "Checking… · \(ip)"
         }
+    }
+}
+
+/// Round power button that lights up in the accent colour on hover.
+struct WakeButton: View {
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "power")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(hovering ? Color.white : Color.accentColor)
+                .frame(width: 26, height: 26)
+                .background(Circle().fill(hovering ? Color.accentColor : Color.accentColor.opacity(0.15)))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help("Wake up")
+        .accessibilityLabel("Wake up")
     }
 }
 
