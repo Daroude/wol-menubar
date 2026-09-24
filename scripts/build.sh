@@ -6,7 +6,7 @@
 # Needs only the Xcode Command Line Tools (xcode-select --install), not Xcode.
 set -euo pipefail
 
-VERSION="1.0.1"
+VERSION="1.0.2"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD="$ROOT/build"
 APP="$BUILD/WOL Menubar.app"

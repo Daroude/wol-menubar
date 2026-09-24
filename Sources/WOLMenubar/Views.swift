@@ -117,7 +117,7 @@ struct DeviceRow: View {
     }
 }
 
-/// Round power button that lights up in the accent colour on hover.
+/// Round, solid power button; brightens and grows slightly on hover.
 struct WakeButton: View {
     let action: () -> Void
     @State private var hovering = false
@@ -126,12 +126,15 @@ struct WakeButton: View {
         Button(action: action) {
             Image(systemName: "power")
                 .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(hovering ? Color.white : Color.accentColor)
+                .foregroundStyle(.white)
                 .frame(width: 26, height: 26)
-                .background(Circle().fill(hovering ? Color.accentColor : Color.accentColor.opacity(0.15)))
+                .background(Circle().fill(Color.accentColor))
+                .brightness(hovering ? 0.08 : 0)
+                .scaleEffect(hovering ? 1.08 : 1)
+                .shadow(color: .black.opacity(0.25), radius: 1.5, y: 0.5)
         }
         .buttonStyle(.plain)
-        .onHover { hovering = $0 }
+        .onHover { h in withAnimation(.easeOut(duration: 0.12)) { hovering = h } }
         .help("Wake up")
         .accessibilityLabel("Wake up")
     }
