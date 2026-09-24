@@ -26,7 +26,6 @@ final class DeviceStore: ObservableObject {
     private var timer: Timer?
     private let wakeTimeout: TimeInterval = 180
 
-    var anyOnline: Bool { status.values.contains(.online) }
 
     init() {
         load()

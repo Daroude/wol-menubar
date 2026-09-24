@@ -19,7 +19,7 @@ struct WOLMenubarApp: App {
         MenuBarExtra {
             MenuPanel().environmentObject(store)
         } label: {
-            Image(nsImage: StatusIcon.image(online: store.anyOnline))
+            Image(nsImage: StatusIcon.image())
         }
         .menuBarExtraStyle(.window)
 
@@ -30,35 +30,14 @@ struct WOLMenubarApp: App {
     }
 }
 
-/// Menu bar icon: a desktop computer, with a green dot while at least one device is online.
+/// Menu bar icon: a desktop computer. Online status is shown in the panel, not here.
 enum StatusIcon {
-    static func image(online: Bool) -> NSImage {
+    static func image() -> NSImage {
         let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .regular)
         let symbol = NSImage(systemSymbolName: "desktopcomputer", accessibilityDescription: "WOL Menubar")!
             .withSymbolConfiguration(config)!
-        guard online else {
-            symbol.isTemplate = true  // adapts to light/dark menu bar
-            return symbol
-        }
-        let size = NSSize(width: symbol.size.width + 3, height: max(symbol.size.height, 16))
-        let img = NSImage(size: size, flipped: false) { rect in
-            // Drawn at display time, so labelColor matches the current menu bar appearance.
-            let tinted = symbol.copy() as! NSImage
-            tinted.lockFocus()
-            NSColor.labelColor.set()
-            NSRect(origin: .zero, size: tinted.size).fill(using: .sourceAtop)
-            tinted.unlockFocus()
-            tinted.draw(in: NSRect(x: 0, y: (rect.height - symbol.size.height) / 2,
-                                   width: symbol.size.width, height: symbol.size.height))
-            let d: CGFloat = 7
-            let dot = NSRect(x: rect.width - d, y: 0.5, width: d, height: d)
-            NSColor.clear.set()
-            NSColor.systemGreen.setFill()
-            NSBezierPath(ovalIn: dot).fill()
-            return true
-        }
-        img.isTemplate = false
-        return img
+        symbol.isTemplate = true  // adapts to light/dark menu bar
+        return symbol
     }
 }
 
