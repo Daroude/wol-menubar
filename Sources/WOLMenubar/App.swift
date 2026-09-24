@@ -12,6 +12,7 @@ struct WOLMenubarApp: App {
         if let path = ProcessInfo.processInfo.environment["WOL_SELFTEST"] {
             Task { await SelfTest.run(reportTo: path); exit(0) }
         }
+        NotchGuard.placeDefault()
     }
 
     var body: some Scene {
@@ -58,6 +59,22 @@ enum StatusIcon {
         }
         img.isTemplate = false
         return img
+    }
+}
+
+/// macOS inserts a new menu bar item at the far left of the status area. On a MacBook with a notch
+/// and a busy menu bar, that is behind the notch, so the icon is invisible. On first launch this
+/// places the item right of the notch, next to the other icons. Once the user moves it (⌘-drag),
+/// AppKit stores the new position under the same key and it is kept.
+enum NotchGuard {
+    /// AppKit's own key: the item's distance from the right screen edge.
+    private static let positionKey = "NSStatusItem Preferred Position Item-0"
+
+    static func placeDefault() {
+        guard UserDefaults.standard.object(forKey: positionKey) == nil,
+              let screen = NSScreen.screens.first, screen.safeAreaInsets.top > 0,
+              let rightOfNotch = screen.auxiliaryTopRightArea, rightOfNotch.width > 0 else { return }
+        UserDefaults.standard.set((rightOfNotch.width * 0.4).rounded(), forKey: positionKey)
     }
 }
 

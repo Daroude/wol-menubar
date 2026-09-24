@@ -98,6 +98,11 @@ tell from the network whether that is set up, so check these settings:
 the *Local Network* permission. Enable **WOL Menubar** under **System Settings → Privacy & Security →
 Local Network**, then click *Scan Again*.
 
+**The menu bar icon does not show up.** On a MacBook with a notch, icons that do not fit next to
+the notch are hidden behind it. On first launch the app places its icon right of the notch; if it
+is still hidden, hold ⌘ and drag other icons away, or turn some off under **System Settings → Menu
+Bar**. Clicking the app in Finder while it is already running does nothing visible.
+
 **Diagnostics.** This runs a scan with the app's own permissions, writes a report and quits:
 
 ```bash
