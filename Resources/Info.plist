@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>WOL Menubar</string>
+	<key>CFBundleDisplayName</key>
+	<string>WOL Menubar</string>
+	<key>CFBundleIdentifier</key>
+	<string>io.github.daroude.wol-menubar</string>
+	<key>CFBundleExecutable</key>
+	<string>WOLMenubar</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>__VERSION__</string>
+	<key>CFBundleVersion</key>
+	<string>__VERSION__</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>13.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.utilities</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>WOL Menubar sends Wake-on-LAN packets to computers on your local network and checks whether they are online.</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>MIT License · github.com/Daroude/wol-menubar</string>
+</dict>
+</plist>

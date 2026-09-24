@@ -1,68 +1,70 @@
-# wol-menubar
+# WOL Menubar
 
-Wake the computers on your home network from the macOS menu bar, with one click.
+A tiny native macOS menu bar app that wakes the computers on your home network with
+[Wake-on-LAN](https://en.wikipedia.org/wiki/Wake-on-LAN), and shows which of them are online.
 
-`wol-menubar` is a small [SwiftBar](https://github.com/swiftbar/SwiftBar) plugin that sends
-[Wake-on-LAN](https://en.wikipedia.org/wiki/Wake-on-LAN) magic packets. It also shows which of
-your computers are online.
-
-```
-🖥  ← green when at least one of your computers is online
-├─ Click a computer to wake it
-├─ ● gaming-pc        ▸  Online · 192.168.1.26
-│                        Wake up
-│                        MAC 74:56:3c:xx:xx:xx
-│                        Remove
-├─ ○ media-server     ▸  Offline · 192.168.1.40
-├─────────────
-├─ Add computer from network…
-├─ Add computer manually…
-└─ Edit device list
-```
+<img src="docs/panel.png" width="300" alt="WOL Menubar panel with three computers: one online, one offline with a Wake button, one waking up">
 
 ## Features
 
-- **Finds your computers automatically.** *Add computer from network…* lists every device your Mac
-  has recently seen on the LAN, with hostname, IP and MAC. Pick one and give it a name.
-- **Manual entry** for machines that are switched off right now: you enter a name and MAC address,
-  and optionally an IP.
-- **Several computers**, each with its own online/offline status (checked by ping every 30 s).
-- **Follows DHCP:** when a computer gets a new IP, the stored one is updated from the ARP cache.
-- **No dependencies** besides SwiftBar. The magic packet is sent with the Perl that ships with macOS,
-  and the dialogs use AppleScript.
-- Sends the packet to the broadcast address of every active interface, plus `255.255.255.255`,
+- **Finds your computers automatically.** *Add Computer… → From Network* lists the devices on your
+  LAN with hostname, IP and MAC address. Pick one and you are done.
+- **Manual entry** for machines that are switched off right now: you enter a name and MAC address.
+- **Several computers**, each with a live status: online, offline, or waking up. The status is
+  checked by ping every 30 s, and every 5 s while a machine boots.
+- **Follows DHCP:** when a computer gets a new IP address, the app picks it up automatically.
+- **Native and lightweight:** SwiftUI with no dependencies, universal binary (Apple Silicon + Intel),
+  about 1 MB. Launch at Login is built in.
+- Sends the magic packet to the broadcast address of every active interface, plus `255.255.255.255`,
   on UDP ports 9 and 7.
+
+Requires macOS 13 Ventura or later.
 
 ## Install
 
+### Download
+
+1. Get `WOL-Menubar-x.y.z.zip` from the [latest release](https://github.com/Daroude/wol-menubar/releases/latest),
+   unzip it and move **WOL Menubar.app** to `/Applications`.
+2. Open it. The app is open source but not notarized by Apple (that needs a paid developer account),
+   so macOS blocks it the first time. Go to **System Settings → Privacy & Security**, scroll down
+   and click **Open Anyway**.
+   Or clear the download flag in Terminal instead:
+   ```bash
+   xattr -dr com.apple.quarantine "/Applications/WOL Menubar.app"
+   ```
+3. When macOS asks whether *WOL Menubar* may find devices on your local network, click **Allow**.
+
+### Build from source
+
+You only need the Xcode Command Line Tools (`xcode-select --install`), not Xcode itself:
+
 ```bash
-git clone https://github.com/Daroude/wol-menubar.git ~/wol-menubar
-~/wol-menubar/install.sh
+git clone https://github.com/Daroude/wol-menubar.git
+cd wol-menubar
+scripts/build.sh --install
 ```
 
-The installer installs SwiftBar with Homebrew if it is missing. Then it symlinks the plugin into
-your SwiftBar plugin folder. To update later:
-
-```bash
-cd ~/wol-menubar && git pull
-```
-
-Devices are stored in `~/.config/wol-menubar/devices`, one per line: `name|mac|ip`.
+This builds `WOL Menubar.app`, copies it to `/Applications` and starts it. When you build it
+yourself, there is no Gatekeeper warning.
 
 ## Adding a computer
 
 1. Switch the target computer on, so it appears on the network.
-2. Menu bar icon → **Add computer from network…**
+2. Click the menu bar icon → **Add Computer…** → **From Network**.
 3. Pick it from the list. **Choose the wired (Ethernet) entry.** A machine with both Ethernet and
    Wi-Fi shows up twice, and Wake-on-LAN almost never works over Wi-Fi.
-4. Give it a name. Done.
+4. Check the name and click **Add**.
 
-If the computer is off, use **Add computer manually…** and type its MAC address instead.
+If the computer is off, use the **Manually** tab and type its MAC address instead.
+
+Devices are stored in `~/.config/wol-menubar/devices`, one per line (`name|mac|ip`), so you can
+also edit or back up the file by hand.
 
 ## Setting up Wake-on-LAN on the target computer
 
-The plugin can only send the packet. The target machine has to listen for it. It is not possible
-to tell from the network whether that is set up, so check these settings:
+The app can only send the packet. The target machine has to listen for it. It is not possible to
+tell from the network whether that is set up, so check these settings:
 
 **BIOS/UEFI**
 - Enable *Wake on LAN* / *Power On By PCI-E* / *Resume by LAN*. The name depends on the vendor.
@@ -85,9 +87,22 @@ to tell from the network whether that is set up, so check these settings:
 - **Local network only.** The Mac and the target have to be in the same LAN/broadcast domain.
   Waking a machine over the internet needs a VPN or a device at home that sends the packet.
 - **Encrypted disks:** a machine with full-disk encryption (LUKS, BitLocker with PIN) boots up to
-  the passphrase prompt and waits there. It shows as "offline" until someone unlocks it.
+  the passphrase prompt and waits there. It shows as "waking" and then "offline" until someone
+  unlocks it.
 - The online status is a simple ping. Computers that block ICMP always show as offline, but can
   still be woken.
+
+## Troubleshooting
+
+**"No devices found" when adding a computer.** macOS only shows the LAN's device table to apps with
+the *Local Network* permission. Enable **WOL Menubar** under **System Settings → Privacy & Security →
+Local Network**, then click *Scan Again*.
+
+**Diagnostics.** This runs a scan with the app's own permissions, writes a report and quits:
+
+```bash
+open -a "WOL Menubar" --env WOL_SELFTEST=$HOME/Desktop/wol-report.txt
+```
 
 ## Credits
 
