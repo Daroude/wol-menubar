@@ -25,7 +25,16 @@ final class DeviceStore: ObservableObject {
 
     private var timer: Timer?
     private let wakeTimeout: TimeInterval = 180
+    private let discoveryInterval: TimeInterval = 300
+    private var lastDiscoveryAt = Date.distantPast
+    private var discoveryTask: Task<Void, Never>?
+    private var refreshGeneration = 0
 
+    private struct Probe {
+        let mac: String
+        let ip: String?
+        let reachable: Bool?
+    }
 
     init() {
         load()
@@ -59,6 +68,7 @@ final class DeviceStore: ObservableObject {
         guard let mac = MAC.normalize(mac) else { return }
         let clean = name.replacingOccurrences(of: "|", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
         let ip = ip?.trimmingCharacters(in: .whitespaces)
+        refreshGeneration += 1
         devices.removeAll { $0.mac == mac }
         devices.append(Device(name: clean.isEmpty ? mac : clean, mac: mac, ip: (ip?.isEmpty ?? true) ? nil : ip))
         save()
@@ -66,6 +76,7 @@ final class DeviceStore: ObservableObject {
     }
 
     func remove(_ device: Device) {
+        refreshGeneration += 1
         devices.removeAll { $0.mac == device.mac }
         status[device.mac] = nil
         save()
@@ -76,41 +87,80 @@ final class DeviceStore: ObservableObject {
     // MARK: Status
 
     func refresh() async {
-        // Follow DHCP: take the current IP for each MAC from the ARP cache.
-        let neighbors = await ARP.neighbors(resolveNames: false)
-        var changed = false
-        for i in devices.indices {
-            if let n = neighbors.first(where: { $0.mac == devices[i].mac }), n.ip != devices[i].ip {
-                devices[i].ip = n.ip
-                changed = true
-            }
-        }
-        if changed { save() }
-
+        refreshGeneration += 1
+        let generation = refreshGeneration
         let snapshot = devices
-        let results = await withTaskGroup(of: (String, Bool?).self) { group in
-            for d in snapshot {
+        let results = await probe(snapshot)
+        guard generation == refreshGeneration else { return }
+        apply(results)
+
+        guard results.contains(where: { $0.reachable != true }),
+              Date().timeIntervalSince(lastDiscoveryAt) >= discoveryInterval else { return }
+        await discover()
+        guard generation == refreshGeneration else { return }
+        let updated = await probe(devices)
+        guard generation == refreshGeneration else { return }
+        apply(updated)
+    }
+
+    private func discover() async {
+        if let discoveryTask {
+            await discoveryTask.value
+            return
+        }
+        let task = Task { await ARP.sweep() }
+        discoveryTask = task
+        await task.value
+        discoveryTask = nil
+        lastDiscoveryAt = Date()
+    }
+
+    private func probe(_ snapshot: [Device]) async -> [Probe] {
+        let observed = Dictionary(grouping: ARP.table().entries, by: { $0.mac })
+        return await withTaskGroup(of: Probe.self) { group in
+            for device in snapshot {
+                let observedIPs = observed[device.mac, default: []].map { $0.ip }
+                var seen = Set<String>()
+                let candidates = ([device.ip].compactMap { $0 } + observedIPs)
+                    .filter { seen.insert($0).inserted }
                 group.addTask {
-                    guard let ip = d.ip else { return (d.mac, nil) }
-                    return (d.mac, await Ping.isReachable(ip))
+                    for ip in candidates where await Ping.isReachable(ip) {
+                        // An old DHCP address may now answer for a different computer.
+                        let entries = ARP.table().entries.filter { $0.ip == ip }
+                        if entries.isEmpty || entries.contains(where: { $0.mac == device.mac }) {
+                            return Probe(mac: device.mac, ip: ip, reachable: true)
+                        }
+                    }
+                    let ip = observedIPs.count == 1 ? observedIPs[0] : device.ip
+                    return Probe(mac: device.mac, ip: ip, reachable: candidates.isEmpty ? nil : false)
                 }
             }
-            var r: [String: Bool?] = [:]
-            for await (mac, up) in group { r[mac] = up }
-            return r
+            var results: [Probe] = []
+            for await result in group { results.append(result) }
+            return results
         }
-        for (mac, up) in results {
-            switch (up, status[mac]) {
+    }
+
+    private func apply(_ results: [Probe]) {
+        var changed = false
+        for result in results {
+            guard let index = devices.firstIndex(where: { $0.mac == result.mac }) else { continue }
+            if let ip = result.ip, ip != devices[index].ip {
+                devices[index].ip = ip
+                changed = true
+            }
+            switch (result.reachable, status[result.mac]) {
             case (true?, _):
-                status[mac] = .online
+                status[result.mac] = .online
             case (_, .waking(let since)?) where Date().timeIntervalSince(since) < wakeTimeout:
                 break  // still booting – keep showing "Waking…"
             case (false?, _):
-                status[mac] = .offline
+                status[result.mac] = .offline
             default:
-                status[mac] = .unknown
+                status[result.mac] = .unknown
             }
         }
+        if changed { save() }
     }
 
     func wake(_ device: Device) {
