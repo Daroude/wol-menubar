@@ -12,7 +12,9 @@ A tiny native macOS menu bar app that wakes the computers on your home network w
 - **Manual entry** for machines that are switched off right now: you enter a name and MAC address.
 - **Several computers**, each with a live status: online, offline, or waking up. The status is
   checked by ping every 30 s, and every 5 s while a machine boots.
-- **Follows DHCP:** when a computer gets a new IP address, the app picks it up automatically.
+- **Follows DHCP on small local subnets:** while a computer is offline, the app scans up to a /22
+  subnet every five minutes and updates its IP when it finds a responding computer with the same
+  MAC address. Computers that block ping still show as offline.
 - **Native and lightweight:** SwiftUI with no dependencies, universal binary (Apple Silicon + Intel),
   about 1 MB. Launch at Login is built in.
 - Sends the magic packet to the broadcast address of every active interface, plus `255.255.255.255`,
@@ -57,6 +59,7 @@ yourself, there is no Gatekeeper warning.
 4. Check the name and click **Add**.
 
 If the computer is off, use the **Manually** tab and type its MAC address instead.
+To correct a saved IP yourself, add the same MAC address again with the new IP.
 
 Devices are stored in `~/.config/wol-menubar/devices`, one per line (`name|mac|ip`), so you can
 also edit or back up the file by hand.
