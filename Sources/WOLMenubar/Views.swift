@@ -37,6 +37,11 @@ struct MenuPanel: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 14).padding(.bottom, 8)
             }
+            if let error = store.storageError {
+                Text(error).font(.caption).foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 14).padding(.bottom, 8)
+            }
 
             Divider()
             VStack(alignment: .leading, spacing: 2) {
@@ -165,6 +170,7 @@ struct PanelButton: View {
 // MARK: - Add window
 
 struct AddDeviceView: View {
+    @EnvironmentObject var store: DeviceStore
     enum Mode: String, CaseIterable { case network = "From Network", manual = "Manually" }
     @State private var mode: Mode = .network
 
@@ -175,6 +181,12 @@ struct AddDeviceView: View {
             }
             .pickerStyle(.segmented).labelsHidden()
             .padding([.horizontal, .top], 16).padding(.bottom, 10)
+
+            if let error = store.storageError {
+                Text(error).font(.caption).foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 16)
+            }
 
             switch mode {
             case .network: NetworkAddView()
@@ -244,8 +256,7 @@ struct NetworkAddView: View {
                 TextField("Name", text: $name).frame(width: 150)
                 Button("Add") {
                     guard let e = selected else { return }
-                    store.add(name: name, mac: e.mac, ip: e.ip)
-                    closeAddWindow()
+                    if store.add(name: name, mac: e.mac, ip: e.ip) { closeAddWindow() }
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(selected == nil || name.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -291,8 +302,7 @@ struct ManualAddView: View {
                 Spacer()
                 Button("Add") {
                     guard let m = validMAC else { return }
-                    store.add(name: name, mac: m, ip: ip)
-                    closeAddWindow()
+                    if store.add(name: name, mac: m, ip: ip) { closeAddWindow() }
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(validMAC == nil || name.trimmingCharacters(in: .whitespaces).isEmpty)
