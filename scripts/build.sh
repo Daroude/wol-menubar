@@ -44,9 +44,28 @@ echo "✓ Built $APP"
 for arg in "$@"; do
   case "$arg" in
     --install)
+      install_stage="$(mktemp -d /Applications/.WOL-Menubar-install.XXXXXX)"
+      restore_previous() {
+        if [ -e "$install_stage/previous.app" ] && [ ! -e "/Applications/WOL Menubar.app" ]; then
+          mv "$install_stage/previous.app" "/Applications/WOL Menubar.app" || true
+        fi
+        if [ -e "$install_stage/previous.app" ]; then
+          echo "Previous app retained at $install_stage/previous.app" >&2
+        else
+          rm -rf "$install_stage"
+        fi
+      }
+      trap restore_previous EXIT
+      ditto "$APP" "$install_stage/WOL Menubar.app"
+      codesign --verify "$install_stage/WOL Menubar.app"
+      if [ -e "/Applications/WOL Menubar.app" ]; then
+        mv "/Applications/WOL Menubar.app" "$install_stage/previous.app"
+      fi
+      mv "$install_stage/WOL Menubar.app" "/Applications/WOL Menubar.app"
+      rm -rf "$install_stage/previous.app"
+      trap - EXIT
+      rm -rf "$install_stage"
       pkill -x WOLMenubar 2>/dev/null && sleep 1 || true
-      rm -rf "/Applications/WOL Menubar.app"
-      cp -R "$APP" /Applications/
       open "/Applications/WOL Menubar.app"
       echo "✓ Installed to /Applications and started" ;;
     --zip)
