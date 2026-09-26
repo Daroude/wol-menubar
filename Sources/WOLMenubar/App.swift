@@ -60,11 +60,7 @@ enum NotchGuard {
 enum LaunchAtLogin {
     static var isEnabled: Bool { SMAppService.mainApp.status == .enabled }
 
-    static func set(_ on: Bool) {
-        do {
-            if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
-        } catch {
-            NSLog("Launch at login: \(error)")
-        }
+    static func set(_ on: Bool) throws {
+        if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
     }
 }

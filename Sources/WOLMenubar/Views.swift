@@ -7,6 +7,7 @@ struct MenuPanel: View {
     @EnvironmentObject var store: DeviceStore
     @Environment(\.openWindow) private var openWindow
     @State private var launchAtLogin = LaunchAtLogin.isEnabled
+    @State private var loginError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -52,13 +53,30 @@ struct MenuPanel: View {
                 Toggle(isOn: $launchAtLogin) { Text("Launch at Login") }
                     .toggleStyle(.checkbox)
                     .padding(.horizontal, 8).padding(.vertical, 5)
-                    .onChange(of: launchAtLogin) { LaunchAtLogin.set($0) }
+                    .onChange(of: launchAtLogin) { updateLaunchAtLogin($0) }
+                if let loginError {
+                    Text(loginError).font(.caption).foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 8)
+                }
                 PanelButton(title: "Quit", icon: "xmark.circle") { NSApp.terminate(nil) }
             }
             .padding(6)
         }
         .frame(width: 300)
         .task { await store.refresh() }
+    }
+
+    private func updateLaunchAtLogin(_ requested: Bool) {
+        guard requested != LaunchAtLogin.isEnabled else { return }
+        do {
+            try LaunchAtLogin.set(requested)
+            launchAtLogin = LaunchAtLogin.isEnabled
+            loginError = launchAtLogin == requested ? nil : "Approve Launch at Login in System Settings."
+        } catch {
+            launchAtLogin = LaunchAtLogin.isEnabled
+            loginError = "Could not change Launch at Login: \(error.localizedDescription)"
+        }
     }
 }
 
