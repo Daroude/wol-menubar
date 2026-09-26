@@ -64,7 +64,9 @@ To correct a saved IP yourself, add the same MAC address again with the new IP.
 
 Devices are stored in `~/.config/wol-menubar/devices`, one per line (`name|mac|ip`), so you can
 also edit or back up the file by hand. Use UTF-8 and keep each device on one line; the app reports
-invalid entries instead of overwriting them. The file is readable only by your user account.
+invalid entries instead of overwriting them. If you correct an invalid file, reopen the menu to
+reload it. For duplicate MAC addresses, the last entry wins. The file is readable only by your
+user account.
 
 ## Setting up Wake-on-LAN on the target computer
 

@@ -52,15 +52,14 @@ final class DeviceStore: ObservableObject {
         do {
             let text = try String(contentsOf: fileURL, encoding: .utf8)
             var loaded: [Device] = []
-            var seen = Set<String>()
             for (index, line) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
                 if line.isEmpty { continue }
                 let fields = line.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
-                guard (2...3).contains(fields.count), let mac = MAC.normalize(fields[1]),
-                      seen.insert(mac).inserted else {
+                guard (2...3).contains(fields.count), let mac = MAC.normalize(fields[1]) else {
                     throw StorageIssue.invalidLine(index + 1)
                 }
                 let ip = fields.count == 3 && !fields[2].isEmpty ? fields[2] : nil
+                loaded.removeAll { $0.mac == mac }
                 loaded.append(Device(name: fields[0], mac: mac, ip: ip))
             }
             devices = loaded
@@ -74,15 +73,21 @@ final class DeviceStore: ObservableObject {
             let nsError = error as NSError
             if nsError.domain == NSCocoaErrorDomain && nsError.code == NSFileReadNoSuchFileError {
                 devices = []
+                storageAvailable = true
+                storageError = nil
                 return
             }
             storageAvailable = false
             if case StorageIssue.invalidLine(let line) = error {
-                storageError = "Device file has an invalid or duplicate entry on line \(line). Fix it and restart the app; no changes will be saved until then."
+                storageError = "Device file has an invalid entry on line \(line). Fix it and reopen the menu; no changes will be saved until then."
             } else {
-                storageError = "Could not read the device file: \(error.localizedDescription). No changes will be saved."
+                storageError = "Could not load or secure the device file: \(error.localizedDescription). Fix it and reopen the menu."
             }
         }
+    }
+
+    func reloadIfBlocked() {
+        if !storageAvailable { load() }
     }
 
     private enum StorageIssue: Error { case invalidLine(Int) }
