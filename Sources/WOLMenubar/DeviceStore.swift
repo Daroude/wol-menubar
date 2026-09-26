@@ -18,6 +18,7 @@ final class DeviceStore: ObservableObject {
     @Published private(set) var devices: [Device] = []
     @Published private(set) var status: [String: DeviceStatus] = [:]
     @Published var lastError: String?
+    @Published private(set) var storageError: String?
 
     /// Plain text, one device per line: `name|mac|ip` — easy to edit or back up by hand.
     let fileURL = FileManager.default.homeDirectoryForCurrentUser
@@ -29,6 +30,7 @@ final class DeviceStore: ObservableObject {
     private var lastDiscoveryAt = Date.distantPast
     private var discoveryTask: Task<Void, Never>?
     private var refreshGeneration = 0
+    private var storageAvailable = true
 
     private struct Probe {
         let mac: String
@@ -47,39 +49,99 @@ final class DeviceStore: ObservableObject {
     // MARK: Persistence
 
     func load() {
-        guard let text = try? String(contentsOf: fileURL, encoding: .utf8) else { devices = []; return }
-        devices = text.split(separator: "\n").compactMap { line in
-            let f = line.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
-            guard f.count >= 2, let mac = MAC.normalize(f[1]) else { return nil }
-            let ip = f.count > 2 && !f[2].isEmpty ? f[2] : nil
-            return Device(name: f[0], mac: mac, ip: ip)
+        do {
+            let text = try String(contentsOf: fileURL, encoding: .utf8)
+            var loaded: [Device] = []
+            var seen = Set<String>()
+            for (index, line) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
+                if line.isEmpty { continue }
+                let fields = line.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+                guard (2...3).contains(fields.count), let mac = MAC.normalize(fields[1]),
+                      seen.insert(mac).inserted else {
+                    throw StorageIssue.invalidLine(index + 1)
+                }
+                let ip = fields.count == 3 && !fields[2].isEmpty ? fields[2] : nil
+                loaded.append(Device(name: fields[0], mac: mac, ip: ip))
+            }
+            devices = loaded
+            let manager = FileManager.default
+            try manager.setAttributes([.posixPermissions: 0o700],
+                                      ofItemAtPath: fileURL.deletingLastPathComponent().path)
+            try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
+            storageAvailable = true
+            storageError = nil
+        } catch {
+            let nsError = error as NSError
+            if nsError.domain == NSCocoaErrorDomain && nsError.code == NSFileReadNoSuchFileError {
+                devices = []
+                return
+            }
+            storageAvailable = false
+            if case StorageIssue.invalidLine(let line) = error {
+                storageError = "Device file has an invalid or duplicate entry on line \(line). Fix it and restart the app; no changes will be saved until then."
+            } else {
+                storageError = "Could not read the device file: \(error.localizedDescription). No changes will be saved."
+            }
         }
     }
 
-    private func save() {
-        let text = devices.map { "\($0.name)|\($0.mac)|\($0.ip ?? "")" }.joined(separator: "\n") + "\n"
-        try? FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try? text.write(to: fileURL, atomically: true, encoding: .utf8)
+    private enum StorageIssue: Error { case invalidLine(Int) }
+
+    @discardableResult
+    private func save(_ updated: [Device]) -> Bool {
+        guard storageAvailable else { return false }
+        let text = updated.map { "\($0.name)|\($0.mac)|\($0.ip ?? "")" }.joined(separator: "\n") + "\n"
+        let directory = fileURL.deletingLastPathComponent()
+        let manager = FileManager.default
+        do {
+            try manager.createDirectory(at: directory, withIntermediateDirectories: true,
+                                        attributes: [.posixPermissions: 0o700])
+            try manager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
+            if !manager.fileExists(atPath: fileURL.path) {
+                guard manager.createFile(atPath: fileURL.path, contents: Data(),
+                                         attributes: [.posixPermissions: 0o600]) else {
+                    throw CocoaError(.fileWriteUnknown)
+                }
+            }
+            try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
+            try text.write(to: fileURL, atomically: true, encoding: .utf8)
+            try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
+            storageError = nil
+            return true
+        } catch {
+            storageError = "Could not save the device file: \(error.localizedDescription)"
+            return false
+        }
     }
 
     // MARK: Editing
 
-    func add(name: String, mac: String, ip: String?) {
-        guard let mac = MAC.normalize(mac) else { return }
-        let clean = name.replacingOccurrences(of: "|", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+    @discardableResult
+    func add(name: String, mac: String, ip: String?) -> Bool {
+        guard let mac = MAC.normalize(mac) else { return false }
+        let clean = name.replacingOccurrences(of: "|", with: "")
+            .components(separatedBy: .newlines).joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         let ip = ip?.trimmingCharacters(in: .whitespaces)
+        guard ip?.contains(where: { $0 == "|" || $0.isNewline }) != true else {
+            storageError = "The IP address must be on one line and cannot contain '|'."
+            return false
+        }
+        var updated = devices.filter { $0.mac != mac }
+        updated.append(Device(name: clean.isEmpty ? mac : clean, mac: mac, ip: (ip?.isEmpty ?? true) ? nil : ip))
+        guard save(updated) else { return false }
         refreshGeneration += 1
-        devices.removeAll { $0.mac == mac }
-        devices.append(Device(name: clean.isEmpty ? mac : clean, mac: mac, ip: (ip?.isEmpty ?? true) ? nil : ip))
-        save()
+        devices = updated
         Task { await refresh() }
+        return true
     }
 
     func remove(_ device: Device) {
+        let updated = devices.filter { $0.mac != device.mac }
+        guard save(updated) else { return }
         refreshGeneration += 1
-        devices.removeAll { $0.mac == device.mac }
+        devices = updated
         status[device.mac] = nil
-        save()
     }
 
     func contains(mac: String) -> Bool { devices.contains { $0.mac == mac } }
@@ -143,10 +205,11 @@ final class DeviceStore: ObservableObject {
 
     private func apply(_ results: [Probe]) {
         var changed = false
+        var updated = devices
         for result in results {
-            guard let index = devices.firstIndex(where: { $0.mac == result.mac }) else { continue }
-            if let ip = result.ip, ip != devices[index].ip {
-                devices[index].ip = ip
+            guard let index = updated.firstIndex(where: { $0.mac == result.mac }) else { continue }
+            if let ip = result.ip, ip != updated[index].ip {
+                updated[index].ip = ip
                 changed = true
             }
             switch (result.reachable, status[result.mac]) {
@@ -160,7 +223,7 @@ final class DeviceStore: ObservableObject {
                 status[result.mac] = .unknown
             }
         }
-        if changed { save() }
+        if changed && save(updated) { devices = updated }
     }
 
     func wake(_ device: Device) {
