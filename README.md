@@ -12,9 +12,10 @@ A tiny native macOS menu bar app that wakes the computers on your home network w
 - **Manual entry** for machines that are switched off right now: you enter a name and MAC address.
 - **Several computers**, each with a live status: online, offline, or waking up. The status is
   checked by ping every 30 s, and every 5 s while a machine boots.
-- **Follows DHCP on small local subnets:** while a computer is offline, the app scans up to a /22
-  subnet every five minutes and updates its IP when it finds a responding computer with the same
-  MAC address. Computers that block ping still show as offline.
+- **Follows DHCP on small local subnets:** opening the menu, pressing Refresh, or checking a waking
+  computer can scan up to a /22 subnet (at most once every five minutes) and update its IP when a
+  computer with the same MAC responds. Idle offline devices do not trigger background scans.
+  Computers that block ping still show as offline.
 - **Native and lightweight:** SwiftUI with no dependencies, universal binary (Apple Silicon + Intel),
   about 1 MB. Launch at Login is built in.
 - Sends the magic packet to the broadcast address of every active interface, plus `255.255.255.255`,

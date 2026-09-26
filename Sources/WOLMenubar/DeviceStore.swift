@@ -149,7 +149,7 @@ final class DeviceStore: ObservableObject {
 
     // MARK: Status
 
-    func refresh() async {
+    func refresh(allowDiscovery: Bool = false) async {
         refreshGeneration += 1
         let generation = refreshGeneration
         let snapshot = devices
@@ -157,7 +157,13 @@ final class DeviceStore: ObservableObject {
         guard generation == refreshGeneration else { return }
         apply(results)
 
-        guard results.contains(where: { $0.reachable != true }),
+        let wakingNeedsDiscovery = results.contains { result in
+            guard result.reachable != true, let current = status[result.mac] else { return false }
+            if case .waking = current { return true }
+            return false
+        }
+        guard (allowDiscovery || wakingNeedsDiscovery),
+              results.contains(where: { $0.reachable != true }),
               Date().timeIntervalSince(lastDiscoveryAt) >= discoveryInterval else { return }
         await discover()
         guard generation == refreshGeneration else { return }

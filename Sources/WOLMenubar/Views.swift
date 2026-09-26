@@ -14,7 +14,7 @@ struct MenuPanel: View {
             HStack {
                 Text("Wake on LAN").font(.headline)
                 Spacer()
-                Button { Task { await store.refresh() } } label: { Image(systemName: "arrow.clockwise") }
+                Button { Task { await store.refresh(allowDiscovery: true) } } label: { Image(systemName: "arrow.clockwise") }
                     .buttonStyle(.borderless).help("Refresh status")
             }
             .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 8)
@@ -64,7 +64,7 @@ struct MenuPanel: View {
             .padding(6)
         }
         .frame(width: 300)
-        .task { await store.refresh() }
+        .task { await store.refresh(allowDiscovery: true) }
     }
 
     private func updateLaunchAtLogin(_ requested: Bool) {
