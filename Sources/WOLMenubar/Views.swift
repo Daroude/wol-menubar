@@ -64,6 +64,7 @@ struct MenuPanel: View {
             .padding(6)
         }
         .frame(width: 300)
+        .onAppear { store.reloadIfBlocked() }
         .task { await store.refresh(allowDiscovery: true) }
     }
 
