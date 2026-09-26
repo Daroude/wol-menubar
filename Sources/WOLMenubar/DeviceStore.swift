@@ -118,6 +118,7 @@ final class DeviceStore: ObservableObject {
 
     @discardableResult
     func add(name: String, mac: String, ip: String?) -> Bool {
+        guard storageAvailable else { return false }
         guard let mac = MAC.normalize(mac) else { return false }
         let clean = name.replacingOccurrences(of: "|", with: "")
             .components(separatedBy: .newlines).joined(separator: " ")
