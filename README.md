@@ -111,7 +111,7 @@ Bar**. Clicking the app in Finder while it is already running does nothing visib
 runs a scan with the app's own permissions, writes a report and quits the diagnostic instance:
 
 ```bash
-open -n -a "WOL Menubar" --env WOL_SELFTEST=$HOME/Desktop/wol-report.txt
+open -n -a "WOL Menubar" --env "WOL_SELFTEST=$HOME/Desktop/wol-report.txt"
 ```
 
 ## Credits
