@@ -12,7 +12,10 @@ A tiny native macOS menu bar app that wakes the computers on your home network w
 - **Manual entry** for machines that are switched off right now: you enter a name and MAC address.
 - **Several computers**, each with a live status: online, offline, or waking up. The status is
   checked by ping every 30 s, and every 5 s while a machine boots.
-- **Follows DHCP:** when a computer gets a new IP address, the app picks it up automatically.
+- **Follows DHCP on small local subnets:** opening the menu, pressing Refresh, or checking a waking
+  computer can scan up to a /22 subnet (at most once every five minutes) and update its IP when a
+  computer with the same MAC responds. Idle offline devices do not trigger background scans.
+  Computers that block ping still show as offline.
 - **Native and lightweight:** SwiftUI with no dependencies, universal binary (Apple Silicon + Intel),
   about 1 MB. Launch at Login is built in.
 - Sends the magic packet to the broadcast address of every active interface, plus `255.255.255.255`,
@@ -57,9 +60,13 @@ yourself, there is no Gatekeeper warning.
 4. Check the name and click **Add**.
 
 If the computer is off, use the **Manually** tab and type its MAC address instead.
+To correct a saved IP yourself, add the same MAC address again with the new IP.
 
 Devices are stored in `~/.config/wol-menubar/devices`, one per line (`name|mac|ip`), so you can
-also edit or back up the file by hand.
+also edit or back up the file by hand. Use UTF-8 and keep each device on one line; the app reports
+invalid entries instead of overwriting them. If you correct an invalid file, reopen the menu to
+reload it. For duplicate MAC addresses, the last entry wins. The file is readable only by your
+user account.
 
 ## Setting up Wake-on-LAN on the target computer
 
@@ -103,10 +110,11 @@ the notch are hidden behind it. On first launch the app places its icon right of
 is still hidden, hold ⌘ and drag other icons away, or turn some off under **System Settings → Menu
 Bar**. Clicking the app in Finder while it is already running does nothing visible.
 
-**Diagnostics.** This runs a scan with the app's own permissions, writes a report and quits:
+**Diagnostics.** This starts a separate app instance even if WOL Menubar is already running,
+runs a scan with the app's own permissions, writes a report and quits the diagnostic instance:
 
 ```bash
-open -a "WOL Menubar" --env WOL_SELFTEST=$HOME/Desktop/wol-report.txt
+open -n -a "WOL Menubar" --env "WOL_SELFTEST=$HOME/Desktop/wol-report.txt"
 ```
 
 ## Credits

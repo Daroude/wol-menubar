@@ -7,13 +7,14 @@ struct MenuPanel: View {
     @EnvironmentObject var store: DeviceStore
     @Environment(\.openWindow) private var openWindow
     @State private var launchAtLogin = LaunchAtLogin.isEnabled
+    @State private var loginError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text("Wake on LAN").font(.headline)
                 Spacer()
-                Button { Task { await store.refresh() } } label: { Image(systemName: "arrow.clockwise") }
+                Button { Task { await store.refresh(allowDiscovery: true) } } label: { Image(systemName: "arrow.clockwise") }
                     .buttonStyle(.borderless).help("Refresh status")
             }
             .padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 8)
@@ -37,6 +38,11 @@ struct MenuPanel: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 14).padding(.bottom, 8)
             }
+            if let error = store.storageError {
+                Text(error).font(.caption).foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 14).padding(.bottom, 8)
+            }
 
             Divider()
             VStack(alignment: .leading, spacing: 2) {
@@ -47,13 +53,31 @@ struct MenuPanel: View {
                 Toggle(isOn: $launchAtLogin) { Text("Launch at Login") }
                     .toggleStyle(.checkbox)
                     .padding(.horizontal, 8).padding(.vertical, 5)
-                    .onChange(of: launchAtLogin) { LaunchAtLogin.set($0) }
+                    .onChange(of: launchAtLogin) { updateLaunchAtLogin($0) }
+                if let loginError {
+                    Text(loginError).font(.caption).foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 8)
+                }
                 PanelButton(title: "Quit", icon: "xmark.circle") { NSApp.terminate(nil) }
             }
             .padding(6)
         }
         .frame(width: 300)
-        .task { await store.refresh() }
+        .onAppear { store.reloadIfBlocked() }
+        .task { await store.refresh(allowDiscovery: true) }
+    }
+
+    private func updateLaunchAtLogin(_ requested: Bool) {
+        guard requested != LaunchAtLogin.isEnabled else { return }
+        do {
+            try LaunchAtLogin.set(requested)
+            launchAtLogin = LaunchAtLogin.isEnabled
+            loginError = launchAtLogin == requested ? nil : "Approve Launch at Login in System Settings."
+        } catch {
+            launchAtLogin = LaunchAtLogin.isEnabled
+            loginError = "Could not change Launch at Login: \(error.localizedDescription)"
+        }
     }
 }
 
@@ -165,6 +189,7 @@ struct PanelButton: View {
 // MARK: - Add window
 
 struct AddDeviceView: View {
+    @EnvironmentObject var store: DeviceStore
     enum Mode: String, CaseIterable { case network = "From Network", manual = "Manually" }
     @State private var mode: Mode = .network
 
@@ -175,6 +200,12 @@ struct AddDeviceView: View {
             }
             .pickerStyle(.segmented).labelsHidden()
             .padding([.horizontal, .top], 16).padding(.bottom, 10)
+
+            if let error = store.storageError {
+                Text(error).font(.caption).foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 16)
+            }
 
             switch mode {
             case .network: NetworkAddView()
@@ -244,8 +275,7 @@ struct NetworkAddView: View {
                 TextField("Name", text: $name).frame(width: 150)
                 Button("Add") {
                     guard let e = selected else { return }
-                    store.add(name: name, mac: e.mac, ip: e.ip)
-                    closeAddWindow()
+                    if store.add(name: name, mac: e.mac, ip: e.ip) { closeAddWindow() }
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(selected == nil || name.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -291,8 +321,7 @@ struct ManualAddView: View {
                 Spacer()
                 Button("Add") {
                     guard let m = validMAC else { return }
-                    store.add(name: name, mac: m, ip: ip)
-                    closeAddWindow()
+                    if store.add(name: name, mac: m, ip: ip) { closeAddWindow() }
                 }
                 .keyboardShortcut(.defaultAction)
                 .disabled(validMAC == nil || name.trimmingCharacters(in: .whitespaces).isEmpty)

@@ -222,8 +222,9 @@ enum ARP {
 }
 
 enum Hostnames {
-    /// Reverse-resolves all IPs in parallel; whatever has not answered within `timeout` stays unnamed.
+    /// Reverse-resolves IPs with bounded concurrency; late answers stay unnamed.
     static func resolve(_ ips: [String], timeout: TimeInterval) async -> [String: String] {
+        guard !ips.isEmpty else { return [:] }
         final class Box: @unchecked Sendable {
             private var names: [String: String] = [:]
             private let lock = NSLock()
@@ -232,23 +233,37 @@ enum Hostnames {
         }
         let box = Box()
         let group = DispatchGroup()
-        for ip in ips {
+        let deadline = ProcessInfo.processInfo.systemUptime + timeout
+        let operations = ips.map { ip -> BlockOperation in
             group.enter()
-            // getnameinfo blocks, so it runs on GCD threads rather than Swift's cooperative pool.
-            DispatchQueue.global(qos: .userInitiated).async {
-                defer { group.leave() }
+            let operation = BlockOperation {
+                guard ProcessInfo.processInfo.systemUptime < deadline else { return }
                 guard let name = lookup(ip) else { return }
                 box.set(ip, name)
             }
+            operation.completionBlock = { group.leave() }
+            return operation
         }
+        for operation in operations { lookupQueue.addOperation(operation) }
         await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
             DispatchQueue.global().async {
                 _ = group.wait(timeout: .now() + timeout)
+                operations.forEach { $0.cancel() }
                 c.resume()
             }
         }
         return box.snapshot()
     }
+
+    // getnameinfo is blocking and cannot be interrupted. Share a small worker pool across scans;
+    // cancelling pending operations keeps later scans from building an unbounded backlog.
+    private static let lookupQueue: OperationQueue = {
+        let queue = OperationQueue()
+        queue.name = "WOL Menubar reverse DNS"
+        queue.qualityOfService = .userInitiated
+        queue.maxConcurrentOperationCount = 8
+        return queue
+    }()
 
     private static func lookup(_ ip: String) -> String? {
         var sa = sockaddr_in()
