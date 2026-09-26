@@ -107,10 +107,11 @@ the notch are hidden behind it. On first launch the app places its icon right of
 is still hidden, hold ⌘ and drag other icons away, or turn some off under **System Settings → Menu
 Bar**. Clicking the app in Finder while it is already running does nothing visible.
 
-**Diagnostics.** This runs a scan with the app's own permissions, writes a report and quits:
+**Diagnostics.** This starts a separate app instance even if WOL Menubar is already running,
+runs a scan with the app's own permissions, writes a report and quits the diagnostic instance:
 
 ```bash
-open -a "WOL Menubar" --env WOL_SELFTEST=$HOME/Desktop/wol-report.txt
+open -n -a "WOL Menubar" --env WOL_SELFTEST=$HOME/Desktop/wol-report.txt
 ```
 
 ## Credits
